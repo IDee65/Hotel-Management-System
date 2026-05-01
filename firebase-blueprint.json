@@ -1,0 +1,42 @@
+{
+  "entities": {
+    "Room": {
+      "title": "Room",
+      "description": "A hotel room.",
+      "type": "object",
+      "properties": {
+        "number": { "type": "string" },
+        "type": { "type": "string" },
+        "priceTier": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["number", "type", "priceTier", "status"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "A room booking.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "guestName": { "type": "string" },
+        "checkIn": { "type": "string", "format": "date" },
+        "checkOut": { "type": "string", "format": "date" }
+      },
+      "required": ["roomId", "guestName", "checkIn", "checkOut"]
+    }
+  },
+  "firestore": {
+    "/rooms/{roomId}": {
+      "schema": "Room",
+      "description": "Collection of all hotel rooms."
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Collection of all bookings."
+    },
+    "/bookingHistory/{bookingId}": {
+      "schema": "Booking",
+      "description": "Collection of all completed bookings."
+    }
+  }
+}

@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function isValidRoom(data) {
+      return data.number is string && data.number.size() <= 50 &&
+             data.type is string && data.type.size() <= 50 &&
+             data.priceTier is number && data.priceTier >= 0 &&
+             data.status is string && data.status.matches('^(AVAILABLE|OCCUPIED|DIRTY|MAINTENANCE)$');
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // Room collection
+    match /rooms/{roomId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && isValidId(roomId);
+      allow create: if isSignedIn() && isValidId(roomId) && isValidRoom(incoming());
+      allow update: if isSignedIn() && isValidId(roomId) && isValidRoom(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['number', 'type', 'priceTier', 'status']);
+      allow delete: if isSignedIn() && isValidId(roomId);
+    }
+  }
+}
