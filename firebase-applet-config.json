@@ -1,10 +1,10 @@
 {
-  "projectId": "ai-generated-game",
-  "appId": "1:136787014483:web:65a549046d796116c3e7a6",
-  "apiKey": "AIzaSyALtQ9l9Pm3Z1ikKf5lQvjziCYmpwNJUKg",
-  "authDomain": "ai-generated-game.firebaseapp.com",
+  "projectId": "hotel-management-system-495012",
+  "appId": "1:587425865288:web:79e4afffce686f5363427d",
+  "apiKey": "AIzaSyD-aoFqy4aCL5B3qqsw8y2NeKwXkjC_bn8",
+  "authDomain": "hotel-management-system-495012.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-7282d02f-870d-4aff-ba06-b361c718836f",
-  "storageBucket": "ai-generated-game.firebasestorage.app",
-  "messagingSenderId": "136787014483",
+  "storageBucket": "hotel-management-system-495012.firebasestorage.app",
+  "messagingSenderId": "587425865288",
   "measurementId": ""
 }

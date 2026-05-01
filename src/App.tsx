@@ -15,6 +15,53 @@ import GuestProfiles from './components/GuestProfiles';
 import BookingHistory from './components/BookingHistory';
 import { Room, UserRole, Booking, Guest } from './types';
 
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  // Not throwing here because this is used in onSnapshot error handler which should just log for now to survive
+}
+
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
@@ -47,18 +94,30 @@ export default function App() {
         // User is authenticated, now subscribe to data
         const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
           setRooms(snapshot.docs.map(doc => ({ ...doc.data() as Room, id: doc.id })));
+        }, (error) => {
+            console.error("Error with rooms snapshot:", error);
+            handleFirestoreError(error, OperationType.GET, 'rooms');
         });
 
         const unsubGuests = onSnapshot(collection(db, 'guests'), (snapshot) => {
             setGuests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as Omit<Guest, 'id'>, preferences: doc.data().preferences || [] })));
+        }, (error) => {
+            console.error("Error with guests snapshot:", error);
+            handleFirestoreError(error, OperationType.GET, 'guests');
         });                
 
         const unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
             setBookings(snapshot.docs.map(doc => ({ ...doc.data() as Booking, id: doc.id })));
+        }, (error) => {
+            console.error("Error with bookings snapshot:", error);
+            handleFirestoreError(error, OperationType.GET, 'bookings');
         });
         
         const unsubBookingHistory = onSnapshot(collection(db, 'bookingHistory'), (snapshot) => {
             setBookingHistory(snapshot.docs.map(doc => ({ ...doc.data() as Booking, id: doc.id })));
+        }, (error) => {
+            console.error("Error with bookingHistory snapshot:", error);
+            handleFirestoreError(error, OperationType.GET, 'bookingHistory');
         });
 
         unsubscribeRoomsRef.current = () => {
