@@ -7,12 +7,14 @@ import { useState, useEffect, useRef } from 'react';
 import RoomManager from './components/RoomManager';
 import Dashboard from './components/Dashboard';
 import Onboarding from './components/Onboarding';
-import { doc, getDocFromServer, onSnapshot, collection } from 'firebase/firestore';
+import UserManagement from './components/UserManagement';
+import { doc, getDoc, getDocFromServer, onSnapshot, collection } from 'firebase/firestore';
 import { db, auth } from './lib/firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, User } from 'firebase/auth';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import BookingCalendar from './components/BookingCalendar';
 import GuestProfiles from './components/GuestProfiles';
 import BookingHistory from './components/BookingHistory';
+import AuthPage from './components/Auth';
 import { Room, UserRole, Booking, Guest } from './types';
 
 enum OperationType {
@@ -59,7 +61,6 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  // Not throwing here because this is used in onSnapshot error handler which should just log for now to survive
 }
 
 async function testConnection() {
@@ -78,19 +79,41 @@ export default function App() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingHistory, setBookingHistory] = useState<Booking[]>([]);
   const [user, setUser] = useState<User | null>(null);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'rooms' | 'bookings' | 'guests' | 'history'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'rooms' | 'bookings' | 'guests' | 'history' | 'users'>('dashboard');
   const [userRole, setUserRole] = useState<UserRole>('ADMIN');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const unsubscribeRoomsRef = useRef<(() => void) | null>(null);
+  const lastActivity = useRef(Date.now());
 
   useEffect(() => {
     testConnection();
     
+    // Inactivity timeout
+    const resetTimer = () => lastActivity.current = Date.now();
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(e => window.addEventListener(e, resetTimer));
+
+    const interval = setInterval(() => {
+      if (Date.now() - lastActivity.current > 30 * 60 * 1000) {
+        signOut(auth);
+      }
+    }, 60000); // Check every minute
+
     // Listen for auth state changes
     const unsubscribeAuth = onAuthStateChanged(auth, (authUser) => {
       setUser(authUser);
       
       if (authUser) {
+        // Fetch user role
+        getDoc(doc(db, 'users', authUser.uid)).then((docSnap) => {
+          if (docSnap.exists()) {
+            setUserRole(docSnap.data().role as UserRole);
+          } else {
+            // Default role if not found
+            setUserRole('GUEST');
+          }
+        });
+
         // User is authenticated, now subscribe to data
         const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
           setRooms(snapshot.docs.map(doc => ({ ...doc.data() as Room, id: doc.id })));
@@ -132,16 +155,20 @@ export default function App() {
           unsubscribeRoomsRef.current = null;
         }
       }
-    });
+      });
 
     return () => {
       unsubscribeAuth();
       if (unsubscribeRoomsRef.current) unsubscribeRoomsRef.current();
+      events.forEach(e => window.removeEventListener(e, resetTimer));
+      clearInterval(interval);
     };
   }, []);
 
   const canAccess = (view: string) => {
-    if (userRole === 'ADMIN') return true;
+    const isDevAdmin = user?.email === 'agbonghaeidemudia@gmail.com' || user?.email === 'admin@gmail.com';
+    if (userRole === 'ADMIN' || isDevAdmin) return true;
+    if (view === 'users') return false; // Admin only
     if (userRole === 'STAFF') return true;
     return view === 'dashboard';
   };
@@ -149,16 +176,7 @@ export default function App() {
   const availableRoomsCount = rooms.filter(r => r.status === 'AVAILABLE').length;
 
   if (!user) {
-    return (
-      <div className="flex justify-center items-center h-screen bg-gray-100">
-        <button
-          onClick={() => signInWithPopup(auth, new GoogleAuthProvider())}
-          className="px-6 py-3 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 flex items-center gap-2"
-        >
-          Sign in with Google
-        </button>
-      </div>
-    );
+    return <AuthPage />;
   }
 
   return (
@@ -166,11 +184,13 @@ export default function App() {
       <nav className="bg-white border-b px-8 py-4 flex gap-6 items-center">
         <h1 className="text-xl font-bold text-gray-900">Hotel Management System</h1>
         
-        <select value={userRole} onChange={(e) => setUserRole(e.target.value as UserRole)} className="border p-1 rounded">
-          <option value="ADMIN">Admin</option>
-          <option value="STAFF">Staff</option>
-          <option value="GUEST">Guest</option>
-        </select>
+        { (userRole === 'ADMIN' || user?.email === 'agbonghaeidemudia@gmail.com' || user?.email === 'admin@gmail.com') && (
+          <select value={userRole} onChange={(e) => setUserRole(e.target.value as UserRole)} className="border p-1 rounded">
+            <option value="ADMIN">Admin</option>
+            <option value="STAFF">Staff</option>
+            <option value="GUEST">Guest</option>
+          </select>
+        )}
 
         {canAccess('dashboard') && (
           <button
@@ -204,11 +224,27 @@ export default function App() {
             Guests
           </button>
         )}
+        {canAccess('users') && (
+          <button
+            onClick={() => setCurrentView('users')}
+            className={`px-3 py-1 rounded ${currentView === 'users' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:text-indigo-600'}`}
+          >
+            Users
+          </button>
+        )}
+        {canAccess('history') && (
+            <button
+                onClick={() => setCurrentView('history')}
+                className={`px-3 py-1 rounded ${currentView === 'history' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:text-indigo-600'}`}
+            >
+                History
+            </button>
+        )}
         <button
-            onClick={() => setCurrentView('history')}
-            className={`px-3 py-1 rounded ${currentView === 'history' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:text-indigo-600'}`}
+            onClick={() => signOut(auth)}
+            className="ml-auto px-3 py-1 rounded text-red-600 hover:text-red-700 hover:bg-red-50"
         >
-            History
+            Sign Out
         </button>
       </nav>
       <div className="p-8">
@@ -220,8 +256,10 @@ export default function App() {
           <BookingCalendar rooms={rooms} bookings={bookings} setBookings={setBookings} guests={guests} />
         ) : currentView === 'guests' && canAccess('guests') ? (
           <GuestProfiles userRole={userRole} rooms={rooms} setBookings={setBookings} bookings={bookings} />
-        ) : currentView === 'history' ? (
+        ) : currentView === 'history' && canAccess('history') ? (
           <BookingHistory history={bookingHistory} rooms={rooms} />
+        ) : currentView === 'users' && canAccess('users') ? (
+          <UserManagement currentUserRole={userRole} />
         ) : (
           <div className="text-center mt-10">Access Denied</div>
         )}

@@ -23,6 +23,16 @@
         "checkOut": { "type": "string", "format": "date" }
       },
       "required": ["roomId", "guestName", "checkIn", "checkOut"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user in the system.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string" }
+      },
+      "required": ["email", "role"]
     }
   },
   "firestore": {
@@ -37,6 +47,10 @@
     "/bookingHistory/{bookingId}": {
       "schema": "Booking",
       "description": "Collection of all completed bookings."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of users and their roles."
     }
   }
 }

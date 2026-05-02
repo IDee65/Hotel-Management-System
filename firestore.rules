@@ -52,5 +52,28 @@ service cloud.firestore {
       allow get: if isSignedIn() && isValidId(bookingId);
       allow create: if isSignedIn() && isValidId(bookingId);
     }
+
+    // Users collection
+    function isValidUser(data) {
+      return data.email is string && data.email.size() <= 255 &&
+             data.role is string && data.role.size() <= 10;
+    }
+    function isUserRole(uid, role) {
+      return exists(/databases/$(database)/documents/users/$(uid)) &&
+             get(/databases/$(database)/documents/users/$(uid)).data.role == role;
+    }
+    function isAdmin(uid) {
+        return isUserRole(uid, 'ADMIN');
+    }
+    function isDevAdmin() {
+        return isSignedIn() && (request.auth.token.email == 'agbonghaeidemudia@gmail.com' || request.auth.token.email == 'admin@gmail.com');
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin(request.auth.uid) || isDevAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
+      allow update: if isSignedIn() && (isAdmin(request.auth.uid) || isDevAdmin()) && isValidUser(incoming());
+      allow list: if isSignedIn() && (isAdmin(request.auth.uid) || isDevAdmin());
+    }
   }
 }
